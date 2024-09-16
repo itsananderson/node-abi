@@ -1,21 +1,30 @@
 name: Auto-update ABI JSON file
+
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 * * * *'
+    - cron: '0 15-23,0-3 * * *'
+
 jobs:
   autoupdate:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c  # tag: v3.3.0
-    - uses: actions/setup-node@64ed1c7eab4cce3362f8c340dee64e5eaeef8f7c  # tag: v3.6.0
+    - name: Generate GitHub App token
+      uses: electron/github-app-auth-action@384fd19694fe7b6dcc9a684746c6976ad78228ae # v1.1.1
+      id: generate-token
       with:
-        node-version: '12.x'
+        creds: ${{ secrets.GH_APP_CREDS }}
+    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+      with:
+        token: ${{ steps.generate-token.outputs.token }}
+    - uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b # v4.0.3
+      with:
+        node-version: '20.x'
     - name: Get npm cache directory
       id: npm-cache
       run: |
         echo "dir=$(npm config get cache)" >> $GITHUB_OUTPUT
-    - uses: actions/cache@627f0f41f6904a5b1efbaed9f96d9eb58e92e920  # tag: v3.2.4
+    - uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4.0.2
       with:
         path: ${{ steps.npm-cache.outputs.dir }}
         key: ${{ runner.os }}-node-${{ hashFiles('**/package.json') }}
@@ -23,20 +32,12 @@ jobs:
           ${{ runner.os }}-node-
     - run: npm install --no-package-lock
     - name: Update ABI registry
-      run: npm run update-abi-registry
-    - name: Commit Changes to ABI registry
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        echo "machine github.com login $GITHUB_ACTOR password $GITHUB_TOKEN" > ~/.netrc
-        chmod 600 ~/.netrc
+        npm run update-abi-registry
         git add abi_registry.json
-        if test -n "$(git status -s)"; then
-          git config user.name "GitHub Actions"
-          git config user.email "github-actions@users.noreply.github.com"
-          git diff --cached
-          git commit -m "feat: update ABI registry"
-          git push origin HEAD:$GITHUB_REF
-        else
-          echo No update needed
-        fi
+    - name: Commit Changes to ABI registry
+      uses: dsanders11/github-app-commit-action@43de6da2f4d927e997c0784c7a0b61bd19ad6aac # v1.5.0
+      with:
+        fail-on-no-changes: false
+        message: 'feat: update ABI registry'
+        token: ${{ steps.generate-token.outputs.token }}

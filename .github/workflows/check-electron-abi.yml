@@ -1,0 +1,42 @@
+name: Check ABI for Electron Version
+
+on:
+  workflow_dispatch:
+    inputs:
+      electron-version:
+        type: string
+        description: Electron version to check (e.g. 26.0.0)
+        required: true
+      expected-abi:
+        type: string
+        description: Expected ABI number (e.g. 117)
+        required: true
+
+permissions: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b # v4.0.3
+      with:
+        node-version: lts/*
+    - name: Create a Temporary package.json
+      run: npm init --yes
+    - name: Install latest node-abi
+      run: npm install --save-dev node-abi
+    - name: Check ABI for Electron version
+      uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+      with:
+        script: |
+          const nodeAbi = require('node-abi');
+
+          const abi = nodeAbi.getAbi('${{ github.event.inputs.electron-version }}', 'electron');
+
+          if (abi !== '${{ github.event.inputs.expected-abi }}') {
+            core.error(`Got ABI ${abi}, expected ${{ github.event.inputs.expected-abi }}`);
+            process.exitCode = 1;
+          } else {
+            core.info(`Got expected ABI ${abi}`);
+          }
